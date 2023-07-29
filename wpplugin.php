@@ -12,5 +12,6 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 use Merkushin\Wpplugin\Wpplugin;
 
-$plugin = new Wpplugin();
+$plugin_file = __FILE__;
+$plugin = new Wpplugin( $plugin_file );
 add_action( 'init', [ $plugin, 'init' ] );

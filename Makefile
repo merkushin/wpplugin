@@ -1,4 +1,9 @@
-all: prefix archive 
+all: build-js prefix archive 
+
+.PHONY: build-js
+build-js:
+	npm install
+	npm run build
 
 .PHONY: prefix
 prefix:
