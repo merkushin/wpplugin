@@ -1,11 +1,18 @@
 const path = require( 'path' );
+const MiniCssExtractPlugin = require( 'mini-css-extract-plugin' );
 
 const config = {
 	// Entry points: one for frontend and one for the admin area.
 	entry: {
 		// frontend and admin keys will replace the [name] portion of the output config below.
-		frontend: './assets/javascript/frontend/index.js',
-		admin: './assets/javascript/admin/index.js'
+		frontend: [
+			'./assets/javascript/frontend/index.js',
+			'./assets/styles/frontend/index.css'
+		],
+		admin: [
+			'./assets/javascript/admin/index.js',
+			'./assets/styles/admin/index.css'
+		]
 	},
 
 	// Output files: one for each of our entry points.
@@ -26,9 +33,22 @@ const config = {
 				exclude: /node_modules/,
 				// Use babel loader to transpile the JS files.
 				loader: 'babel-loader'
+			},
+			{
+				test: /\.css$/,
+				use: [
+					MiniCssExtractPlugin.loader,
+					'css-loader'
+				]
 			}
 		]
-	}
+	},
+
+	plugins: [
+		new MiniCssExtractPlugin( {
+			filename: './dist/styles/[name].css'
+		} )
+	]
 }
 
 module.exports = config;

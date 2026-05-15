@@ -43,6 +43,13 @@ class Wpplugin {
 	}
 
 	public function enqueue_admin_scripts() {
+		$this->assets->wp_enqueue_style(
+			'wpplugin-admin-styles',
+			$this->plugins->plugin_dir_url( $this->plugin_file ) . '/assets/dist/styles/admin.css',
+			[],
+			'1.0.0'
+		);
+
 		$this->assets->wp_enqueue_script(
 			'wpplugin-admin-scripts',
 			$this->plugins->plugin_dir_url( $this->plugin_file ) . '/assets/dist/javascript/admin.js',
@@ -53,6 +60,13 @@ class Wpplugin {
 	}
 
 	public function enqueue_frontend_scripts() {
+		$this->assets->wp_enqueue_style(
+			'wpplugin-frontend-styles',
+			$this->plugins->plugin_dir_url( $this->plugin_file ) . '/assets/dist/styles/frontend.css',
+			[],
+			'1.0.0'
+		);
+
 		$this->assets->wp_enqueue_script(
 			'wpplugin-frontend-scripts',
 			$this->plugins->plugin_dir_url( $this->plugin_file ) . '/assets/dist/javascript/frontend.js',
