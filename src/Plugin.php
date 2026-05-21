@@ -1,12 +1,12 @@
 <?php declare( strict_types=1 );
 
-namespace Merkushin\Wpplugin;
+namespace Wpplugin;
 
 use Merkushin\Wpal\Service\Assets;
 use Merkushin\Wpal\Service\Hooks;
 use Merkushin\Wpal\ServiceFactory;
 
-class Wpplugin {
+class Plugin {
 	/**
 	 * Main plugin file path.
 	 *

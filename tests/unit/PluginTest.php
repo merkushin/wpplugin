@@ -1,19 +1,19 @@
 <?php declare(strict_types=1);
 
-namespace MerkushinTest\Wpplugin;
+namespace Wpplugin\Tests;
 
 use Merkushin\Wpal\ServiceFactory;
 use Merkushin\Wpal\Service\Hooks;
-use Merkushin\Wpplugin\Wpplugin;
+use Wpplugin\Plugin;
 use PHPUnit\Framework\TestCase; 
 
-class WppluginTest extends TestCase {
+class PluginTest extends TestCase {
 	public function testInit_Always_AddsActions(): void {
 		// Arrange
 		$hooks = $this->createMock( Hooks::class );
 		ServiceFactory::set_custom_hooks($hooks);
 
-		$plugin = new Wpplugin( 'wpplugin.php' );
+		$plugin = new Plugin( 'wpplugin.php' );
 
 		// Expect
 		$hooks

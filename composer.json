@@ -3,11 +3,16 @@
     "description": "Template for a new WordPress plugin",
     "type": "project",
     "license": "GPL-2.0-or-later",
-	"minimum-stability": "dev",
+    "minimum-stability": "dev",
     "autoload": {
         "psr-4": {
-            "Merkushin\\Wpplugin\\": "src/"
+            "Wpplugin\\": "src/"
         }
+    },
+    "scripts": {
+        "post-create-project-cmd": [
+            "@php scripts/post-create-project.php"
+        ]
     },
     "authors": [
         {

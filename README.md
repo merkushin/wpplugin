@@ -1,12 +1,10 @@
 ## wpplugin
 
-Template for a new plugin.
+Base scaffold for a WordPress plugin.
 
-```
-$ composer create-project -s dev merkushin/wpplugin new-plugin
-```
-
-> Don’t forget to rename the plugin name, the namespace and the plugin file.
+When this project is created from the template, the post-create setup script
+derives the plugin slug, bootstrap file name, and PHP namespace from the
+installation directory name.
 
 
 Run tests:
@@ -20,4 +18,3 @@ Build the plugin:
 ```
 $ make
 ```
-
