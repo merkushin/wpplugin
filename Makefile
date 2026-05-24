@@ -8,7 +8,7 @@ build-js:
 .PHONY: prefix
 prefix:
 	composer install --no-dev
-	vendor/bin/php-scoper add-prefix --config=./config/scoper.inc.php
+	php -d memory_limit=512M vendor/bin/php-scoper add-prefix --force --config=./config/scoper.inc.php
 	cd build && composer dump-autoload
 
 .PHONY: archive
