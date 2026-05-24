@@ -15,14 +15,22 @@ class PluginTest extends TestCase {
 
 		$plugin = new Plugin( 'wpplugin.php' );
 
+		$expectedCalls = [
+			[ 'wp_enqueue_scripts', [ $plugin, 'enqueue_frontend_scripts' ], 10, 1 ],
+			[ 'admin_enqueue_scripts', [ $plugin, 'enqueue_admin_scripts' ], 10, 1 ],
+		];
+
+		$matcher = $this->exactly(count($expectedCalls));
+
 		// Expect
 		$hooks
-			->expects( $this->exactly( 2 ) )
+			->expects($matcher)
 			->method( 'add_action' )
-			->withConsecutive(
-				[ 'wp_enqueue_scripts', [ $plugin, 'enqueue_frontend_scripts' ] ],
-				[ 'admin_enqueue_scripts', [ $plugin, 'enqueue_admin_scripts' ] ],
-			);
+			->willReturnCallback( function (...$args) use ( $matcher, $expectedCalls ) {
+				$callIndex = $matcher->numberOfInvocations() - 1;
+				self::assertSame($expectedCalls[$callIndex], $args);
+				return true;
+			});
 
 		// Act
 		$plugin->init();
