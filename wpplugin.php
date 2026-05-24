@@ -6,12 +6,12 @@
  * @since     1.0.0
 */
 
-namespace Merkushin\Wpplugin;
+namespace Wpplugin;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-use Merkushin\Wpplugin\Wpplugin;
+use Wpplugin\Plugin;
 
 $plugin_file = __FILE__;
-$plugin = new Wpplugin( $plugin_file );
+$plugin = new Plugin( $plugin_file );
 add_action( 'init', [ $plugin, 'init' ] );
