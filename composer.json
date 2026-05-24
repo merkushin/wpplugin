@@ -22,9 +22,9 @@
     ],
     "require": {
         "merkushin/wpal": "dev-main",
-        "humbug/php-scoper": "^0.17.5"
+        "humbug/php-scoper": "^0.18.19"
     },
     "require-dev": {
-        "phpunit/phpunit": "9.6.x-dev"
+        "phpunit/phpunit": "13.1.x-dev"
     }
 }
