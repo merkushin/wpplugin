@@ -6,6 +6,11 @@ When this project is created from the template, the post-create setup script
 derives the plugin slug, bootstrap file name, and PHP namespace from the
 installation directory name.
 
+## Usage
+
+```
+composer create-project merkushin/wpplugin my-plugin
+```
 
 Run tests:
 
