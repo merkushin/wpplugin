@@ -295,12 +295,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/merkushin/WPAL.git",
-                "reference": "e3cc6a0898f34f2a0074a6b2d53721ef47702180"
+                "reference": "de7c6882da8ec13c2d2f140694f8e50d988d8326"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/merkushin/WPAL/zipball/e3cc6a0898f34f2a0074a6b2d53721ef47702180",
-                "reference": "e3cc6a0898f34f2a0074a6b2d53721ef47702180",
+                "url": "https://api.github.com/repos/merkushin/WPAL/zipball/de7c6882da8ec13c2d2f140694f8e50d988d8326",
+                "reference": "de7c6882da8ec13c2d2f140694f8e50d988d8326",
                 "shasum": ""
             },
             "require": {
@@ -331,7 +331,7 @@
                 "issues": "https://github.com/merkushin/WPAL/issues",
                 "source": "https://github.com/merkushin/WPAL/tree/main"
             },
-            "time": "2025-02-09T06:50:51+00:00"
+            "time": "2026-05-24T07:29:26+00:00"
         },
         {
             "name": "nikic/php-parser",
