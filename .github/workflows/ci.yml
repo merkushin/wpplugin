@@ -102,7 +102,7 @@ jobs:
       - name: Smoke test the build
         run: make smoke
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: wpplugin
           path: build/wpplugin
