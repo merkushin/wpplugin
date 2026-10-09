@@ -28,7 +28,7 @@ jobs:
       WPPLUGIN_WPORG_USER: acmeteam
       WPPLUGIN_URI: https://github.com/acme/acme-widgets
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: template
 
