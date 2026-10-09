@@ -1,0 +1,80 @@
+name: Template
+
+# Checks that a plugin created from this template is ready to submit: creates one the way
+# `composer create-project` does, then runs every check and Plugin Check on it.
+# The setup script deletes this workflow from created plugins.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  create-project:
+    name: Create a plugin and check it
+    runs-on: ubuntu-latest
+    env:
+      WPPLUGIN_NAME: Acme Widgets
+      WPPLUGIN_DESCRIPTION: Adds widgets to your site.
+      WPPLUGIN_AUTHOR: Acme Team
+      WPPLUGIN_AUTHOR_EMAIL: team@example.com
+      WPPLUGIN_WPORG_USER: acmeteam
+      WPPLUGIN_URI: https://github.com/acme/acme-widgets
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: template
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2, wp-cli
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Create acme-widgets from the template
+        run: |
+          mkdir acme-widgets
+          git -C template archive HEAD | tar -x -C acme-widgets
+          cd acme-widgets
+          composer install --no-interaction --no-progress
+          composer run-script post-create-project-cmd
+
+      - name: No template leftovers
+        working-directory: acme-widgets
+        run: |
+          test -f acme-widgets.php
+          test ! -e wpplugin.php
+          test ! -e scripts
+          test ! -e .github/workflows/template.yml
+          if grep -rIn -i -e wpplugin -e "Dmitry Merkushin" -e merkushin@ --exclude-dir=vendor --exclude-dir=node_modules --exclude=LICENSE --exclude=composer.lock .; then
+            echo "Template placeholders left in the created plugin." && exit 1
+          fi
+
+      - name: All checks pass
+        working-directory: acme-widgets
+        run: |
+          npm ci
+          make check
+
+      - name: Build and smoke test
+        working-directory: acme-widgets
+        run: |
+          make dist
+          make smoke
+
+      - name: Plugin Check
+        uses: WordPress/plugin-check-action@v1
+        with:
+          build-dir: acme-widgets/build/acme-widgets
+          slug: acme-widgets
