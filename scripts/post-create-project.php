@@ -1,219 +1,292 @@
 <?php declare( strict_types=1 );
+/**
+ * Turns a fresh copy of the template into your plugin. Composer runs it after
+ * `composer create-project merkushin/wpplugin <directory>`.
+ *
+ * The slug comes from the directory name. In a terminal it asks for the plugin name, author
+ * and so on; otherwise it uses the defaults, which environment variables can override:
+ * WPPLUGIN_NAME, WPPLUGIN_DESCRIPTION, WPPLUGIN_AUTHOR, WPPLUGIN_AUTHOR_EMAIL,
+ * WPPLUGIN_WPORG_USER, WPPLUGIN_URI and WPPLUGIN_NAMESPACE.
+ *
+ * It then replaces the template's placeholders everywhere, renames wpplugin.php and removes
+ * itself and the other template-only files.
+ */
 
 $projectRoot = dirname( __DIR__ );
-$directoryName = basename( $projectRoot );
-$slug = slugify( $directoryName );
+$slug        = slugify( basename( $projectRoot ) );
 
 if ( '' === $slug ) {
-	fwrite( STDERR, "Unable to derive a plugin slug from the project directory name.\n" );
-	exit( 1 );
+	fail( 'Unable to derive a plugin slug from the project directory name.' );
 }
 
-$namespaceRoot = namespace_root_from_slug( $slug );
-$pluginName = plugin_name_from_slug( $slug );
-$composerPackageName = $slug . '/' . $slug;
-$npmPackageName = $slug;
-$bootstrapSource = $projectRoot . '/wpplugin.php';
-$bootstrapTarget = $projectRoot . '/' . $slug . '.php';
-$renamedBootstrap = false;
-
-if ( file_exists( $bootstrapSource ) && $bootstrapSource !== $bootstrapTarget ) {
-	if ( file_exists( $bootstrapTarget ) ) {
-		fwrite( STDERR, "Refusing to rename wpplugin.php because {$slug}.php already exists.\n" );
-		exit( 1 );
+// Plugin Check rejects slugs and names with these terms (and others' trademarks).
+foreach ( [ 'wordpress', 'plugin', 'woocommerce', 'gutenberg' ] as $restricted ) {
+	if ( false !== strpos( $slug, $restricted ) ) {
+		fwrite( STDERR, "Warning: WordPress.org doesn't accept plugin slugs containing \"{$restricted}\". Rename the directory and start again.\n" );
 	}
-
-	if ( ! rename( $bootstrapSource, $bootstrapTarget ) ) {
-		fwrite( STDERR, "Failed to rename wpplugin.php to {$slug}.php.\n" );
-		exit( 1 );
-	}
-
-	$renamedBootstrap = true;
 }
 
+$interactive = function_exists( 'stream_isatty' ) && stream_isatty( STDIN ) && stream_isatty( STDOUT );
+if ( $interactive ) {
+	echo "Setting up the plugin \"{$slug}\". Press Enter to accept the [default].\n";
+}
+
+$gitName  = git_config( 'user.name' );
+$gitEmail = git_config( 'user.email' );
+
+$name        = ask( $interactive, 'WPPLUGIN_NAME', 'Plugin name', words_from_slug( $slug, ' ' ) );
+$description = ask( $interactive, 'WPPLUGIN_DESCRIPTION', 'One-line description', 'A WordPress plugin.' );
+$author      = ask( $interactive, 'WPPLUGIN_AUTHOR', 'Author', '' !== $gitName ? $gitName : 'Your Name' );
+$email       = ask( $interactive, 'WPPLUGIN_AUTHOR_EMAIL', 'Author email', '' !== $gitEmail ? $gitEmail : 'you@example.com' );
+$wporgUser   = ask( $interactive, 'WPPLUGIN_WPORG_USER', 'WordPress.org username', slugify( $author ) );
+$uri         = ask( $interactive, 'WPPLUGIN_URI', 'Repository or homepage URL (optional)', '' );
+$namespace   = ask( $interactive, 'WPPLUGIN_NAMESPACE', 'PHP namespace', namespace_from_slug( $slug ) );
+
+// The values go into PHP comments, JSON and the POT file unescaped.
+foreach ( [ $name, $description, $author, $email, $wporgUser, $uri ] as $value ) {
+	if ( preg_match( '/["\\\\\n]/', $value ) ) {
+		fail( "Quotes, backslashes and line breaks aren't supported: {$value}" );
+	}
+}
+
+if ( ! preg_match( '/^[A-Za-z_][A-Za-z0-9_]*(\\\\[A-Za-z_][A-Za-z0-9_]*)*$/', $namespace ) ) {
+	fail( "\"{$namespace}\" is not a valid PHP namespace." );
+}
+
+$prefix = str_replace( '-', '_', $slug );
+$vendor = '' !== slugify( $wporgUser ) ? slugify( $wporgUser ) : $slug;
+
+// strtr() tries longer keys first: 'merkushin/wpplugin' before 'wpplugin', and the escaped
+// namespace in composer.json ("Wpplugin\\") before 'Wpplugin'.
 $replacements = [
-	'merkushin/wpplugin' => $composerPackageName,
-	'merkushin-wpplugin' => $npmPackageName,
-	'WP Plugin' => $pluginName,
-	'Merkushin\\Wpplugin' => $namespaceRoot,
-	'Wpplugin\\' => $namespaceRoot . '\\',
-	'Wpplugin' => $namespaceRoot,
-	'wpplugin.php' => $slug . '.php',
-	'wpplugin' => $slug,
+	'https://github.com/merkushin/wpplugin' => '' !== $uri ? $uri : 'TODO: link to the public repository',
+	'merkushin/wpplugin'                    => $vendor . '/' . $slug,
+	'Template for a new WordPress plugin'   => $description,
+	'Dmitry Merkushin'                      => $author,
+	'merkushin@gmail.com'                   => $email,
+	'Contributors: merkushin'               => 'Contributors: ' . $wporgUser,
+	'WP Plugin'                             => $name,
+	'Wpplugin\\\\'                          => str_replace( '\\', '\\\\', $namespace ) . '\\\\',
+	'Wpplugin'                              => $namespace,
+	'wpplugin_'                             => $prefix . '_',
+	'wpplugin'                              => $slug,
 ];
 
+// Lines that only make sense with a URL.
+$lineRemovals = '' === $uri
+	? [
+		' * Plugin URI:        https://github.com/merkushin/wpplugin',
+		"\t\"homepage\": \"https://github.com/merkushin/wpplugin\",",
+		"#. Plugin URI of the plugin\n#: wpplugin.php\nmsgid \"https://github.com/merkushin/wpplugin\"\nmsgstr \"\"\n",
+	]
+	: [];
+
+remove_template_files( $projectRoot );
+
 $changedFiles = [];
-
 foreach ( files_to_update( $projectRoot ) as $filePath ) {
-	$contents = file_get_contents( $filePath );
-
-	if ( false === $contents ) {
-		fwrite( STDERR, "Failed to read {$filePath}.\n" );
-		exit( 1 );
+	$contents = read_file( $filePath );
+	$updated  = remove_lines( $contents, $lineRemovals );
+	$updated  = strtr( $updated, $replacements );
+	if ( 'composer.json' === basename( $filePath ) && dirname( $filePath ) === $projectRoot ) {
+		$updated = remove_setup_script_hook( $updated );
+	}
+	if ( 'readme.txt' === basename( $filePath ) ) {
+		$updated = update_tested_up_to( $updated );
 	}
 
-	$updatedContents = strtr( $contents, $replacements );
+	if ( $updated !== $contents ) {
+		write_file( $filePath, $updated );
+		$changedFiles[] = relative_path( $filePath, $projectRoot );
+	}
+}
 
-	if ( $updatedContents === $contents ) {
-		continue;
+rename_file( $projectRoot . '/languages/wpplugin.pot', $projectRoot . "/languages/{$slug}.pot" );
+rename_file( $projectRoot . '/wpplugin.php', $projectRoot . "/{$slug}.php" );
+
+// composer.json changed, so the lock file's hash must be refreshed; then the autoloader
+// must pick up the new namespace.
+run_composer( $projectRoot, 'update --lock --no-install --no-scripts --no-interaction --quiet' );
+run_composer( $projectRoot, 'dump-autoload --no-scripts --quiet' );
+
+echo "\nSet up {$name} ({$slug}, namespace {$namespace}): updated " . count( $changedFiles ) . " files.\n\n";
+echo <<<NEXT
+Next steps:
+  cd {$slug}
+  git init && git add -A && git commit -m "Create {$name} from merkushin/wpplugin"
+  npm install
+  make check      # coding standards, static analysis, tests: all should pass
+  make dist       # builds {$slug}.zip
+
+Write your code in src/ and tests in tests/unit/. AGENTS.md explains the layout and
+conventions; docs/FIRST-RELEASE.md walks through submitting to WordPress.org.
+
+NEXT;
+
+/**
+ * Asks a question in a terminal; otherwise uses the environment variable or the default.
+ */
+function ask( bool $interactive, string $env, string $question, string $default ): string {
+	$fromEnv = getenv( $env );
+	if ( is_string( $fromEnv ) && '' !== $fromEnv ) {
+		return $fromEnv;
+	}
+	if ( ! $interactive ) {
+		return $default;
 	}
 
-	if ( false === file_put_contents( $filePath, $updatedContents ) ) {
-		fwrite( STDERR, "Failed to update {$filePath}.\n" );
-		exit( 1 );
+	echo '' !== $default ? "{$question} [{$default}]: " : "{$question}: ";
+	$answer = fgets( STDIN );
+	$answer = false === $answer ? '' : trim( $answer );
+
+	return '' !== $answer ? $answer : $default;
+}
+
+function git_config( string $key ): string {
+	$value = shell_exec( 'git config --get ' . escapeshellarg( $key ) . ' 2>/dev/null' );
+
+	return is_string( $value ) ? trim( $value ) : '';
+}
+
+/**
+ * Removes files that belong to the template, not to the plugin made from it.
+ */
+function remove_template_files( string $projectRoot ): void {
+	foreach ( [ '.github/workflows/template.yml', 'scripts/post-create-project.php' ] as $file ) {
+		if ( file_exists( $projectRoot . '/' . $file ) && ! unlink( $projectRoot . '/' . $file ) ) {
+			fail( "Failed to remove {$file}." );
+		}
+	}
+	if ( is_dir( $projectRoot . '/scripts' ) && [] === array_diff( (array) scandir( $projectRoot . '/scripts' ), [ '.', '..' ] ) ) {
+		rmdir( $projectRoot . '/scripts' );
 	}
 
-	$changedFiles[] = relative_path( $filePath, $projectRoot );
+	// The README describes the template; the part between these markers goes.
+	$readme   = $projectRoot . '/README.md';
+	$contents = read_file( $readme );
+	$updated  = preg_replace( '/<!-- template:start -->.*?<!-- template:end -->\n*/s', '', $contents );
+	if ( is_string( $updated ) && $updated !== $contents ) {
+		write_file( $readme, $updated );
+	}
 }
 
-run_composer_dump_autoload( $projectRoot );
-
-if ( $renamedBootstrap ) {
-	$changedFiles[] = $slug . '.php';
+function rename_file( string $source, string $target ): void {
+	if ( ! file_exists( $source ) || $source === $target ) {
+		return;
+	}
+	if ( file_exists( $target ) ) {
+		fail( 'Refusing to rename ' . basename( $source ) . ' because ' . basename( $target ) . ' already exists.' );
+	}
+	if ( ! rename( $source, $target ) ) {
+		fail( 'Failed to rename ' . basename( $source ) . ' to ' . basename( $target ) . '.' );
+	}
 }
 
-$changedFiles = array_values( array_unique( $changedFiles ) );
-sort( $changedFiles );
+function remove_setup_script_hook( string $composerJson ): string {
+	$updated = preg_replace( '/\t\t"post-create-project-cmd": \[\n[^\]]*\],\n/', '', $composerJson );
 
-echo "Configured plugin template for {$pluginName}.\n";
-echo "Slug: {$slug}\n";
-echo "Namespace: {$namespaceRoot}\n";
-
-if ( [] === $changedFiles ) {
-	echo "No placeholder updates were needed.\n";
-	exit( 0 );
+	return is_string( $updated ) ? $updated : $composerJson;
 }
 
-echo "Updated files:\n";
+/**
+ * Sets "Tested up to" to the current WordPress version, so a new plugin doesn't start out of date.
+ */
+function update_tested_up_to( string $readme ): string {
+	$context  = stream_context_create( [ 'http' => [ 'timeout' => 5 ] ] );
+	$response = @file_get_contents( 'https://api.wordpress.org/core/version-check/1.7/', false, $context );
+	$data     = is_string( $response ) ? json_decode( $response, true ) : null;
+	$version  = $data['offers'][0]['version'] ?? '';
+	if ( ! is_string( $version ) || ! preg_match( '/^(\d+\.\d+)/', $version, $matches ) ) {
+		return $readme;
+	}
 
-foreach ( $changedFiles as $changedFile ) {
-	echo " - {$changedFile}\n";
+	$updated = preg_replace( '/^Tested up to: .*$/m', 'Tested up to: ' . $matches[1], $readme );
+
+	return is_string( $updated ) ? $updated : $readme;
 }
 
+/**
+ * @param string[] $lines
+ */
+function remove_lines( string $contents, array $lines ): string {
+	foreach ( $lines as $line ) {
+		$contents = str_replace( $line . "\n", '', $contents );
+	}
+
+	return $contents;
+}
+
+/**
+ * @return string[]
+ */
 function files_to_update( string $projectRoot ): array {
-	$allowedFileNames = [
-		'composer.json',
-		'package.json',
-		'package-lock.json',
-		'README.md',
-		'Makefile',
-	];
-	$allowedExtensions = [
-		'php',
-		'js',
-		'css',
-		'json',
-		'md',
-		'inc',
-	];
-	$skipDirectories = [
-		'.git',
-		'build',
-		'node_modules',
-		'vendor',
-	];
-	$files = [];
-	$iterator = new RecursiveIteratorIterator(
-		new RecursiveDirectoryIterator(
-			$projectRoot,
-			FilesystemIterator::SKIP_DOTS
+	$fileNames      = [ 'Makefile', '.gitignore' ];
+	$extensions     = [ 'php', 'js', 'css', 'json', 'md', 'txt', 'yml', 'yaml', 'dist', 'neon', 'pot' ];
+	$skipDirectories = [ '.git', 'build', 'node_modules', 'vendor', 'vendor-prefixed' ];
+	$files          = [];
+	$iterator       = new RecursiveIteratorIterator(
+		new RecursiveCallbackFilterIterator(
+			new RecursiveDirectoryIterator( $projectRoot, FilesystemIterator::SKIP_DOTS ),
+			static function ( SplFileInfo $file ) use ( $skipDirectories ): bool {
+				return ! ( $file->isDir() && in_array( $file->getFilename(), $skipDirectories, true ) );
+			}
 		)
 	);
 
 	foreach ( $iterator as $fileInfo ) {
-		$filePath = $fileInfo->getPathname();
-		$relativePath = relative_path( $filePath, $projectRoot );
-		$segments = explode( DIRECTORY_SEPARATOR, $relativePath );
-
-		if ( [] !== array_intersect( $segments, $skipDirectories ) ) {
+		if ( 'LICENSE' === $fileInfo->getFilename() ) {
 			continue;
 		}
-
-		if ( in_array( $fileInfo->getFilename(), $allowedFileNames, true ) ) {
-			$files[] = $filePath;
-			continue;
-		}
-
-		if ( in_array( $fileInfo->getExtension(), $allowedExtensions, true ) ) {
-			$files[] = $filePath;
+		if ( in_array( $fileInfo->getFilename(), $fileNames, true ) || in_array( $fileInfo->getExtension(), $extensions, true ) ) {
+			$files[] = $fileInfo->getPathname();
 		}
 	}
-
 	sort( $files );
 
 	return $files;
 }
 
-function run_composer_dump_autoload( string $projectRoot ): void {
-	$command = composer_dump_autoload_command( $projectRoot );
-	$descriptors = [
-		0 => STDIN,
-		1 => STDOUT,
-		2 => STDERR,
-	];
-	$process = proc_open( $command, $descriptors, $pipes, $projectRoot );
+function run_composer( string $projectRoot, string $arguments ): void {
+	$composer = getenv( 'COMPOSER_BINARY' );
+	if ( is_string( $composer ) && '' !== $composer ) {
+		$command = escapeshellarg( PHP_BINARY ) . ' ' . escapeshellarg( $composer );
+	} else {
+		$command = 'composer';
+	}
 
+	$process = proc_open( $command . ' ' . $arguments, [ 0 => STDIN, 1 => STDOUT, 2 => STDERR ], $pipes, $projectRoot );
 	if ( ! is_resource( $process ) ) {
-		fwrite( STDERR, "Failed to start Composer to regenerate autoload files.\n" );
-		exit( 1 );
+		fail( "Failed to run composer {$arguments}." );
 	}
-
 	$exitCode = proc_close( $process );
-
 	if ( 0 !== $exitCode ) {
-		fwrite( STDERR, "Composer dump-autoload failed with exit code {$exitCode}.\n" );
-		exit( $exitCode );
+		fail( "composer {$arguments} failed with exit code {$exitCode}.", $exitCode );
 	}
 }
 
-function composer_dump_autoload_command( string $projectRoot ): string {
-	$composerBinary = getenv( 'COMPOSER_BINARY' );
-
-	if ( is_string( $composerBinary ) && '' !== $composerBinary ) {
-		return escapeshellarg( $composerBinary ) . ' dump-autoload --no-scripts';
+function read_file( string $path ): string {
+	$contents = file_get_contents( $path );
+	if ( false === $contents ) {
+		fail( "Failed to read {$path}." );
 	}
 
-	$composerPhar = $projectRoot . '/composer.phar';
-
-	if ( file_exists( $composerPhar ) ) {
-		return escapeshellarg( PHP_BINARY ) . ' ' . escapeshellarg( $composerPhar ) . ' dump-autoload --no-scripts';
-	}
-
-	return 'composer dump-autoload --no-scripts';
+	return $contents;
 }
 
-function plugin_name_from_slug( string $slug ): string {
-	return implode(
-		' ',
-		array_map(
-			static function ( string $segment ): string {
-				return ucfirst( $segment );
-			},
-			explode( '-', $slug )
-		)
-	);
+function write_file( string $path, string $contents ): void {
+	if ( false === file_put_contents( $path, $contents ) ) {
+		fail( "Failed to update {$path}." );
+	}
 }
 
-function namespace_root_from_slug( string $slug ): string {
-	$namespace = implode(
-		'',
-		array_map(
-			static function ( string $segment ): string {
-				return ucfirst( $segment );
-			},
-			explode( '-', $slug )
-		)
-	);
+function words_from_slug( string $slug, string $glue ): string {
+	return implode( $glue, array_map( 'ucfirst', explode( '-', $slug ) ) );
+}
 
-	if ( '' === $namespace ) {
-		return 'Plugin';
-	}
+function namespace_from_slug( string $slug ): string {
+	$namespace = words_from_slug( $slug, '' );
 
-	if ( ! ctype_alpha( $namespace[0] ) ) {
-		return 'Plugin' . $namespace;
-	}
-
-	return $namespace;
+	return ctype_alpha( $namespace[0] ) ? $namespace : 'Plugin' . $namespace;
 }
 
 function relative_path( string $path, string $root ): string {
@@ -223,7 +296,14 @@ function relative_path( string $path, string $root ): string {
 function slugify( string $value ): string {
 	$slug = strtolower( $value );
 	$slug = preg_replace( '/[^a-z0-9]+/', '-', $slug );
-	$slug = trim( $slug ?? '', '-' );
 
-	return preg_replace( '/-+/', '-', $slug ) ?? '';
+	return trim( $slug ?? '', '-' );
+}
+
+/**
+ * @return never
+ */
+function fail( string $message, int $exitCode = 1 ) {
+	fwrite( STDERR, $message . "\n" );
+	exit( $exitCode );
 }
