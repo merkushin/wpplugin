@@ -15,6 +15,9 @@ permissions:
 jobs:
   release:
     name: Build and deploy
+    # Tags in the template repository are template releases for Packagist, not plugin releases.
+    # The name is split so the setup script's placeholder replacement leaves this check alone.
+    if: github.repository != format('{0}/{1}{2}', 'merkushin', 'wp', 'plugin')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
