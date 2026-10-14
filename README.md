@@ -23,7 +23,7 @@ Template for a new WordPress plugin
 
 ## Development
 
-Requirements: PHP 7.4+, Composer, Node.js 22.22+, [WP-CLI](https://wp-cli.org/) for translations
+Requirements: PHP 7.4+, Composer, Node.js 22.22+
 and Docker for running Plugin Check locally.
 
 ```bash
