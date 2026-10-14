@@ -28,6 +28,16 @@ jobs:
           tools: composer:v2
           coverage: none
 
+      - name: Locate the Composer download cache
+        id: composer-cache
+        run: echo "dir=$(composer config --global cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
